@@ -6,15 +6,19 @@ import time
 import os.path
 import sys
 
+# Margin from border to first measure in nn
 border=10
+# Nmber of probes in each direction
 nProbesX = 4
 nProbesY = 4
 fileName='probes.csv'
+# Desired hot end temperature (None - use current)
 temp = None
 
+# Flying level of hot end
 level=5
 
-zposPat = re.compile('Bed Position X: ([0-9.]+) +Y: ([0-9.]+) +Z: ([0-9.]+)')
+zposPat = re.compile('Bed Position X: ([0-9.-]+) +Y: ([0-9.-]+) +Z: ([0-9.-]+)')
 tempPat = re.compile('ok T:([0-9.]+) /([0-9.]+) B:([0-9.]+) /([0-9.]+) T.+')
 zoffsetPat = re.compile('echo:  M212 X([0-9.-]+) +Y([0-9.-]+) +Z([0-9.-]+)')
 sizePat = re.compile('echo:  M211 X([0-9.-]+) +Y([0-9.-]+) +Z([0-9.-]+)');
@@ -71,16 +75,19 @@ class Handler:
          self.zOffset = m.group(3)
       m = sizePat.match(line)
       if m:
-         print '--- xMax: ' + m.group(1) + ', yMAx:' + m.group(2)
+         print '--- xMax: ' + m.group(1) + ', yMax:' + m.group(2)
          self.xMax = float(m.group(1))
          self.yMax = float(m.group(2))
 
   def probePoint(self,x,y):
+    self.z = None
+    self.t = None
+    self.b = None
     self.doCmd('G0 Z' + str(level)) # Lift
     self.doCmd('G0 X' +  "{:4.2f}".format(x) + ' Y'+  "{:4.2f}".format(y)) # Move to probe position
-    self.doCmd('M114') #Current pos
-    self.doCmd('G30')   # Probe
-    self.doCmd('M105') #temp
+    self.doCmd('M114') # Show current pos
+    self.doCmd('G30')  # Probe z
+    self.doCmd('M105') # Probe temperatures
   
 
 now = time.strftime("%Y-%m-%d %H:%m:%S")
@@ -135,6 +142,9 @@ if (not temp is None) and (temp > 0):
    h.doComd('M107') # fan off
 
    
+if h.zOffset is None:
+   print "z offset (M212) not parsed"
+   h.zOffset = ''     # To avoid error in print
 
 newFile = not os.path.isfile(fileName)
 
@@ -147,7 +157,6 @@ with open(fileName, 'a') as results:
   print 'PROBING:'
   for x in xpos:
     for y in ypos:
-      z = None
       h.probePoint(x, y)
       print '>>> ' + now + ',' +  "{:4.2f}".format(x) + ',' +  "{:4.2f}".format(y) + ',' + h.zOffset + ',' + h.t + ',' + h.b + ',' + h.z
       results.write(now + ',' +  "{:4.2f}".format(x) + ',' +  "{:4.2f}".format(y) + ',' + h.zOffset + ',' + h.t +  ',' + h.b + ',' + h.z + '\n')
